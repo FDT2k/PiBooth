@@ -2,6 +2,8 @@ import time
 import picamera
 import picamera.array
 from PIL import Image
+from PIL import ImageFont
+from PIL import ImageDraw
 from time import sleep
 import RPi.GPIO as gpio
 import io
@@ -42,70 +44,54 @@ def white_balance():
             output.seek(0)
             output.truncate()
 
+def display_overlay_timeout(file, delay):
+    img = Image.open(file)
+    o = display_overlay_image(img)
+    sleep(delay)
+    camera.remove_overlay(o)
+
+
+def display_overlay_image(img):
+    pad = Image.new('RGB', (
+        ((img.size[0] + 31) // 32) * 32,
+        ((img.size[1] + 15) // 16) * 16,
+        ))
+    pad.paste(img, (0, 0))
+    o = camera.add_overlay(pad.tostring(), size=img.size)
+    o.alpha = 128
+    o.layer = 3
+    return o
+
+
+
+
 def start_capture():
     print " capture "
-    img = Image.open('overlay_3.png')
-    pad = Image.new('RGB', (
-        ((img.size[0] + 31) // 32) * 32,
-        ((img.size[1] + 15) // 16) * 16,
-        ))
-    pad.paste(img, (0, 0))
-    o = camera.add_overlay(pad.tostring(), size=img.size)
-    o.alpha = 128
-    o.layer = 3
-    sleep(1)
-    camera.remove_overlay(o)
 
+    display_overlay_timeout('overlay_3.png',1)
 
+    display_overlay_timeout('overlay_2.png',1)
 
-    img = Image.open('overlay_2.png')
-    pad = Image.new('RGB', (
-        ((img.size[0] + 31) // 32) * 32,
-        ((img.size[1] + 15) // 16) * 16,
-        ))
-    pad.paste(img, (0, 0))
-    o = camera.add_overlay(pad.tostring(), size=img.size)
-    o.alpha = 128
-    o.layer = 3
-    sleep(1)
-    camera.remove_overlay(o)
+    display_overlay_timeout('overlay_1.png',1)
 
-
-    img = Image.open('overlay_1.png')
-    pad = Image.new('RGB', (
-        ((img.size[0] + 31) // 32) * 32,
-        ((img.size[1] + 15) // 16) * 16,
-        ))
-    pad.paste(img, (0, 0))
-    o = camera.add_overlay(pad.tostring(), size=img.size)
-    o.alpha = 128
-    o.layer = 3
-    sleep(1)
-    camera.remove_overlay(o)
-	# capture to stream
+    # capture to stream
     stream = io.BytesIO()
     camera.capture(stream, format='jpeg')
     stream.seek(0)
     img = Image.open(stream)
 
-    pad = Image.new('RGB', (
-        ((img.size[0] + 31) // 32) * 32,
-        ((img.size[1] + 15) // 16) * 16,
-        ))
-    pad.paste(img, (0, 0))
-    o = camera.add_overlay(pad.tostring(), size=img.size)
-    o.alpha = 255
-    o.layer = 3
-    sleep(3)
+
+    o = display_overlay_image(img)
+
     top =  (height /2) - (crop_size() /2)
     left =  (width /2) -(crop_size() /2)
 
-	# debug info
+    # debug info
     print "height "+str(height)
     print "width "+ str(width)
     print crop_size(),top, left
 
-	img = img.crop((left, top, left+crop_size(),top+crop_size()))
+    img = img.crop((left, top, left+crop_size(),top+crop_size()))
     img.save('out.jpg')
     camera.remove_overlay(o)
     img.close();
@@ -113,8 +99,29 @@ def start_capture():
 
     #camera.capture('foo.jpg')
     #-o media=4X6FULL -o position=top -o orientation-requested=1 -o mediatype=PMPHOTO_HIGH
-	# print quality parameters config in cups.
-    call(["lp","out.jpg","-o","position=top"])
+    # print quality parameters config in cups.
+
+
+
+    img = Image.open("out.jpg")
+
+    display_overlay_timeout("develop.png",5)
+
+    output = Image.new('RGBA',(img.size[0],img.size[1]+50),"white")
+    draw = ImageDraw.Draw(output)
+    font = ImageFont.truetype("/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf", 32)
+    h = int(img.size[1])+15
+    draw.text((0,h),"Moi je ...",(0,0,0),font=font)
+    output.paste(img,(0,0))
+    output.save('sample-out.jpg')
+    #write out some text
+    call(["lp","sample-out.jpg","-o","position=top"])
+    output.close()
+    img.close();
+    #write out some text
+
+
+
 
 
 def crop_size():
